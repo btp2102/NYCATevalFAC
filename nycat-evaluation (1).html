@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NYCAT Convening Evaluation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   CONFIG — the three things you're likely to change
+   ============================================================ */
+</style>
+<script>
+const CONFIG = {
+  // Google Sheet that holds EVERY piece of editable text on this page — every question, the welcome
+  // screen, button labels, error messages, and the submission screens. Add rows to your sheet with
+  // any of these ids to override that built-in default; leave a row out and the default below is used.
+  // Leave SHEET_ID blank to skip loading and just use the built-in text below.
+  SHEET_ID: "",
+  TAB_NAME: "nycat-eval-questions",
+
+  // Google Apps Script Web App URL that appends a row to your responses sheet. See the setup notes
+  // delivered alongside this file. Leave blank and the form will still work — it just skips straight
+  // to the "copy your answers" screen instead of trying to submit anywhere.
+  SUBMIT_URL: ""
+};
+</script>
+<style>
+:root{
+  --parchment:#F3EDDD; --parchment-line:#E7DFC9; --ink:#221D17; --ink-soft:#5A4E3E;
+  --teal:#1F5C4E; --teal-dark:#163F35; --rust:#B93F26; --mustard:#C98A1B;
+  --white:#FFFFFF; --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--parchment); color:var(--ink);
+  font-family:'Libre Franklin',Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+h1,h2,h3{font-family:'Big Shoulders Display',Impact,Arial,sans-serif; font-weight:700; margin:0; letter-spacing:.01em}
+.wrap{max-width:720px; margin:0 auto; padding:0 20px 64px}
+header.top{
+  background:var(--ink); color:var(--parchment); padding:22px 20px 20px;
+}
+header.top .inner{max-width:720px; margin:0 auto}
+header.top .kicker{font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--mustard); margin-bottom:4px}
+header.top h1{font-size:28px; line-height:1.15; color:#fff}
+header.top .sub{font-size:13.5px; color:#D8D0BC; margin-top:6px}
+
+.progress-shell{max-width:720px; margin:0 auto; padding:14px 20px 0}
+.progress-track{height:8px; background:var(--parchment-line); border-radius:99px; overflow:hidden}
+.progress-fill{height:100%; background:var(--teal); border-radius:99px; transition:width .35s ease}
+.progress-label{font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-top:7px; letter-spacing:.02em}
+
+.card{background:var(--white); border:1.5px solid var(--parchment-line); border-radius:var(--radius); padding:26px 22px; margin-top:22px; box-shadow:0 1px 3px rgba(34,29,23,.06)}
+.section-title{font-size:26px; color:var(--ink); margin-bottom:4px}
+.section-desc{font-size:14.5px; color:var(--ink-soft); line-height:1.5; margin-bottom:22px}
+
+.q{margin-bottom:30px}
+.q:last-child{margin-bottom:0}
+.q-label{font-size:16.5px; font-weight:600; line-height:1.4; color:var(--ink); margin-bottom:3px}
+.q-label .req{color:var(--rust); margin-left:3px}
+.q-help{font-size:13.5px; color:var(--ink-soft); line-height:1.45; margin-bottom:12px}
+
+input[type=text], textarea{
+  width:100%; font-family:'Libre Franklin',Arial,sans-serif; font-size:16px; color:var(--ink);
+  background:#FBF8F0; border:1.5px solid var(--parchment-line); border-radius:10px; padding:12px 14px;
+  resize:vertical;
+}
+textarea{min-height:96px; line-height:1.5}
+input[type=text]:focus, textarea:focus{outline:none; border-color:var(--teal); background:#fff}
+
+.choices{display:flex; flex-direction:column; gap:9px}
+.choice{
+  display:flex; align-items:flex-start; gap:12px; padding:13px 14px; border:1.5px solid var(--parchment-line);
+  border-radius:10px; cursor:pointer; background:#FBF8F0; transition:border-color .15s, background .15s;
+}
+.choice:active{background:#F3EDDD}
+.choice.checked{border-color:var(--teal); background:#EBF3F0}
+.choice input{margin-top:2px; width:19px; height:19px; accent-color:var(--teal); flex:0 0 auto}
+.choice span{font-size:15.5px; line-height:1.4}
+.other-input{margin-top:8px; margin-left:31px}
+
+.rank-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.rank-item{
+  display:flex; align-items:center; gap:12px; background:#FBF8F0; border:1.5px solid var(--parchment-line);
+  border-radius:10px; padding:12px 12px 12px 8px; touch-action:none; user-select:none;
+}
+.rank-item.dragging{border-color:var(--teal); box-shadow:0 6px 16px rgba(31,92,78,.18); background:#fff; z-index:5; position:relative}
+.rank-num{
+  flex:0 0 auto; width:30px; height:30px; border-radius:50%; background:var(--teal); color:#fff;
+  font-family:'Big Shoulders Display',Arial,sans-serif; font-weight:700; font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+}
+.rank-handle{flex:0 0 auto; width:26px; text-align:center; color:var(--ink-soft); font-size:20px; line-height:1; cursor:grab; padding:4px}
+.rank-label{flex:1 1 auto; font-size:15px; line-height:1.35; padding-right:4px}
+.rank-arrows{flex:0 0 auto; display:flex; flex-direction:column; gap:2px}
+.rank-arrows button{
+  width:30px; height:22px; border:1px solid var(--parchment-line); background:#fff; color:var(--ink);
+  border-radius:5px; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
+}
+.rank-arrows button:disabled{opacity:.3; cursor:default}
+.rank-hint{font-size:12.5px; color:var(--ink-soft); margin-top:10px}
+
+table.rate{width:100%; border-collapse:collapse; font-size:13.5px}
+table.rate th{font-weight:600; color:var(--ink-soft); padding:0 4px 8px; text-align:center}
+table.rate th.lbl{text-align:left}
+table.rate td{padding:10px 4px; border-top:1px solid var(--parchment-line); vertical-align:middle}
+table.rate td.lbl{font-size:14.5px; font-weight:500; padding-right:8px; line-height:1.3}
+table.rate td.cell{text-align:center}
+.rate-radio{width:22px; height:22px; accent-color:var(--teal); cursor:pointer}
+.rate-scale-caption{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-soft); margin-top:6px}
+
+.nav{display:flex; gap:12px; margin-top:26px}
+.btn{
+  font-family:'Libre Franklin',Arial,sans-serif; font-weight:700; font-size:15.5px; padding:13px 22px;
+  border-radius:10px; border:2px solid var(--ink); cursor:pointer; letter-spacing:.01em;
+}
+.btn-primary{background:var(--ink); color:var(--parchment); flex:1}
+.btn-primary:disabled{opacity:.45; cursor:default}
+.btn-ghost{background:transparent; color:var(--ink)}
+.btn-primary:active{transform:translateY(1px)}
+
+.intro-badges{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 4px}
+.badge{font-size:12.5px; font-weight:700; letter-spacing:.03em; color:var(--teal); background:#EBF3F0; border:1px solid #CFE1D9; padding:6px 12px; border-radius:99px}
+
+.err-text{color:var(--rust); font-size:13px; font-weight:600; margin-top:6px; display:none}
+.q.invalid .err-text{display:block}
+.q.invalid input, .q.invalid textarea{border-color:var(--rust)}
+
+.thanks-icon{width:64px; height:64px; border-radius:50%; background:var(--teal); color:#fff; display:flex; align-items:center; justify-content:center; font-size:32px; margin:6px auto 18px}
+.center{text-align:center}
+
+.fallback-box{background:#FBF8F0; border:1.5px dashed var(--parchment-line); border-radius:10px; padding:16px; margin-top:16px}
+.fallback-box textarea{min-height:160px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px}
+.small-note{font-size:12px; color:var(--ink-soft); margin-top:8px; line-height:1.5}
+
+.sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0)}
+@media (min-width:640px){ header.top h1{font-size:34px} .section-title{font-size:30px} }
+</style>
+</head>
+<body>
+
+<header class="top"><div class="inner">
+  <div class="kicker">New York State Child Care Alignment Table</div>
+  <h1 id="pageTitle"></h1>
+  <div class="sub" id="pageSubtitle"></div>
+</div></header>
+
+<div class="progress-shell" id="progressShell" style="display:none">
+  <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-label" id="progressLabel"></div>
+</div>
+
+<div class="wrap">
+  <div id="app"></div>
+</div>
+
+<script>
+/* ============================================================
+   Built-in question set (used as-is, or as a fallback+base that
+   the Google Sheet's text can override, matched by id).
+   ============================================================ */
+const DEFAULT_MODEL = {
+  sections: [
+    { id:"A", title:"About you", desc:"For context on where your answers are coming from — not to single anyone out.",
+      questions:[
+        { id:"q1_name", type:"text", required:false, q:"Name", help:"Optional — only if it's useful for us to follow up with you directly." },
+        { id:"q2_org", type:"text", required:true, q:"Organization" },
+        { id:"q3_role", type:"multi_other", required:true, q:"Your role in the convening", help:"Select all that apply.",
+          options:["Planning committee","Facilitator","Elected official or staff","Panelist/speaker","Attendee representing an organization"] },
+        { id:"q4_sessions", type:"multi_other", required:true, q:"Which parts of the day were you most directly part of?", help:"Select all that apply.",
+          options:["Elected officials lightning round","Round Robin — Wage Scale table","Round Robin — Workforce Supports table","Round Robin — Revenue table","Organizing Roundtable (panel)","Track 1 — Organizing & Campaigning","Track 2 — Refining the Policy Agenda","Logistics/setup only","I was mostly circulating"] }
+      ]},
+    { id:"B", title:"What emerged", desc:"Feel free to note which session or table something relates to.",
+      questions:[
+        { id:"q5_progress", type:"textarea", required:false, q:"What felt like real progress or alignment?", help:"Where did you sense people converging, or building shared understanding they didn't have walking in?" },
+        { id:"q6_attention", type:"textarea", required:false, q:"What needs attention?", help:"Where did you notice hesitation, pushback, gaps, or something left unresolved?" },
+        { id:"q7_surprise", type:"textarea", required:false, q:"What surprised you?", help:"Something you didn't expect to hear, or a perspective that shifted your thinking." }
+      ]},
+    { id:"C", title:"Open questions & tensions", desc:"",
+      questions:[
+        { id:"q8_openq", type:"textarea", required:false, q:"What's the most important open question or unresolved tension from your session(s) that the campaign needs to address before November 12?" },
+        { id:"q9_divergence", type:"textarea", required:false, q:"Where did you notice disagreement or divergence?", help:"Between organizations, provider settings, or strategies." }
+      ]},
+    { id:"D", title:"Next steps", desc:"",
+      questions:[
+        { id:"q10_commitments", type:"textarea", required:false, q:"What commitments stood out to you?", help:"We're pulling commitments together from notes taken across the day, but don't want to miss anything meaningful — from individuals or organizations. Who made them, if you remember?" },
+        { id:"q11_between_now", type:"textarea", required:false, q:"What needs to happen between now and the November 12 launch for those commitments to actually happen?" },
+        { id:"q12_rank", type:"rank", required:false, q:"Rank these next moves for the campaign", help:"Drag to reorder, from most urgent to least — or use the arrows.",
+          options:["Finalize the policy platform language","Recruit more elected co-sponsors","Build out organizing committees by region","Launch public-facing campaign materials","Deepen labor/provider alignment","Secure more revenue-campaign partners"] },
+        { id:"q13_leverage", type:"textarea", required:false, q:"With the 2027 legislative session ahead, what's the single highest-leverage action the campaign should take in the next 60 days?" },
+        { id:"q14_missing", type:"textarea", required:false, q:"Is there anyone who wasn't in the room who the campaign needs to bring in?" }
+      ]},
+    { id:"E", title:"Logistics feedback", desc:"",
+      questions:[
+        { id:"q15_ratings", type:"rating_grid", required:false, q:"How would you rate the following?", scaleLow:"1 · needs work", scaleHigh:"5 · excellent",
+          options:["Registration & check-in","Venue & room flow","Interpretation/language justice","Timing & pacing of sessions","Facilitation quality","Food/breaks"] },
+        { id:"q16_fix", type:"textarea", required:false, q:"What logistical issue, if any, would you fix first for the next convening?" },
+        { id:"q17_else", type:"textarea", required:false, q:"Anything else you want the planning team to know?" }
+      ]}
+  ]
+};
+
+/* ============================================================
+   Every other piece of on-screen text — header, welcome screen,
+   button labels, error messages, submission screens. Same override
+   mechanism as the questions above: a sheet row whose id matches
+   one of these keys, with the text in its "question" column,
+   replaces that default. See loadSheetOverrides() below.
+   ============================================================ */
+const STR = {
+  ui_site_title: "NYCAT Convening Evaluation",
+  ui_site_subtitle: "Pay Justice for Child Care — Monday, Sept 28, 2026",
+
+  ui_intro_title: "Help us capture what happened",
+  ui_intro_body: "You were part of planning, facilitating, or representing an organization at the September 28 convening. This takes about 15 minutes. We want to jog your memory on the themes that came up in the rooms you were in, the open questions worth carrying forward, and next steps toward the November 12 campaign launch and the coming legislative session — plus a quick read on how the day itself ran.",
+  ui_intro_note: "Your name is optional. Everything else helps us build an accurate record.",
+  ui_intro_badge1: "~15 minutes",
+  ui_intro_badge2: "Name optional",
+  ui_intro_badge3: "Mobile-friendly",
+  ui_start_button: "Start",
+
+  ui_back_button: "Back",
+  ui_next_button: "Next",
+  ui_submit_button: "Submit",
+  ui_progress_label: "Section {n} of {total}",
+
+  ui_err_text: "Please fill this in before continuing.",
+  ui_err_choice: "Please select at least one option.",
+  ui_other_label: "Other",
+  ui_other_placeholder: "Tell us more",
+  ui_rank_hint: "Drag the ⠿ handle, or use the arrows, to reorder.",
+
+  ui_thanks_title: "Thank you",
+  ui_thanks_body: "Your answers help build an honest record of the day and sharpen what comes next. We'll be in touch as the campaign moves toward November 12.",
+
+  ui_fallback_nourl_title: "Ready to send",
+  ui_fallback_nourl_body: "This form isn't yet connected to a destination sheet. Copy your answers below and send them to the planning team.",
+  ui_fallback_err_title: "Couldn't submit automatically",
+  ui_fallback_err_body: "Your answers are saved below so nothing is lost. Copy this and send it to the planning team, or try again.",
+  ui_copy_button: "Copy to clipboard",
+  ui_copied_label: "Copied",
+  ui_retry_button: "Try again"
+};
+const OTHER_KEY = "__other__"; // internal marker for the "Other" checkbox — stays fixed even if ui_other_label is edited
+
+/* ============================================================
+   State
+   ============================================================ */
+let MODEL = DEFAULT_MODEL;
+let step = -1; // -1 = intro, 0..N-1 = sections, N = thanks
+let answers = {};
+const DRAFT_KEY = "nycat-eval-draft-v1";
+
+function loadDraft(){ try{ const s = localStorage.getItem(DRAFT_KEY); if(s){ const d = JSON.parse(s); answers = d.answers||{}; step = typeof d.step==="number" ? d.step : -1; } }catch(e){} }
+function saveDraft(){ try{ localStorage.setItem(DRAFT_KEY, JSON.stringify({answers, step})); }catch(e){} }
+function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+
+/* ============================================================
+   Optional: pull question text from a published Google Sheet,
+   matched onto DEFAULT_MODEL by id. Never blocks the page —
+   if it fails or CONFIG.SHEET_ID is blank, defaults are used.
+   ============================================================ */
+async function loadSheetOverrides(){
+  if(!CONFIG.SHEET_ID) return;
+  try{
+    const url = "https://opensheet.elk.sh/" + CONFIG.SHEET_ID + "/" + encodeURIComponent(CONFIG.TAB_NAME);
+    const res = await fetch(url);
+    if(!res.ok) return;
+    const rows = await res.json();
+    if(!Array.isArray(rows) || !rows.length) return;
+    const byId = {};
+    rows.forEach(r => { if(r.id) byId[r.id.trim()] = r; });
+    MODEL.sections.forEach(sec => {
+      const meta = byId["section_" + sec.id];
+      if(meta){ if(meta.question) sec.title = meta.question; if(meta.help) sec.desc = meta.help; }
+      sec.questions.forEach(q => {
+        const row = byId[q.id];
+        if(!row) return;
+        if(row.question) q.q = row.question;
+        if(row.help !== undefined && row.help !== "") q.help = row.help;
+        if(row.required !== undefined && row.required !== "") q.required = /^(true|yes|y|1)$/i.test(row.required.trim());
+        if(row.options !== undefined && row.options !== "" && (q.type === "multi_other" || q.type === "rank" || q.type === "rating_grid")){
+          q.options = row.options.split(";").map(s => s.trim()).filter(Boolean);
+        }
+        if(q.type === "rating_grid"){
+          if(row.scale_low) q.scaleLow = row.scale_low;
+          if(row.scale_high) q.scaleHigh = row.scale_high;
+        }
+      });
+    });
+    // every other on-screen string (welcome screen, buttons, errors, submission screens)
+    Object.keys(STR).forEach(key => {
+      const row = byId[key];
+      if(row && row.question) STR[key] = row.question;
+    });
+  }catch(e){ /* silent — defaults stand */ }
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const app = document.getElementById("app");
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function render(){
+  document.getElementById("pageTitle").textContent = STR.ui_site_title;
+  document.getElementById("pageSubtitle").textContent = STR.ui_site_subtitle;
+  const total = MODEL.sections.length;
+  const progressShell = document.getElementById("progressShell");
+
+  if(step === -1){ progressShell.style.display = "none"; renderIntro(); return; }
+  if(step === total){ progressShell.style.display = "none"; renderThanks(); return; }
+
+  progressShell.style.display = "block";
+  const pct = Math.round(((step) / total) * 100);
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.getElementById("progressLabel").textContent = STR.ui_progress_label.replace("{n}", step+1).replace("{total}", total);
+  renderSection(MODEL.sections[step]);
+}
+
+function renderIntro(){
+  app.innerHTML = `
+    <div class="card">
+      <h2 class="section-title">${esc(STR.ui_intro_title)}</h2>
+      <p class="section-desc" style="margin-top:14px">${esc(STR.ui_intro_body)}</p>
+      <div class="intro-badges">
+        <span class="badge">${esc(STR.ui_intro_badge1)}</span>
+        <span class="badge">${esc(STR.ui_intro_badge2)}</span>
+        <span class="badge">${esc(STR.ui_intro_badge3)}</span>
+      </div>
+      <p class="small-note">${esc(STR.ui_intro_note)}</p>
+      <div class="nav"><button class="btn btn-primary" id="startBtn">${esc(STR.ui_start_button)}</button></div>
+    </div>`;
+  document.getElementById("startBtn").onclick = () => { step = 0; saveDraft(); render(); window.scrollTo(0,0); };
+}
+
+function renderThanks(){
+  app.innerHTML = `
+    <div class="card center">
+      <div class="thanks-icon">✓</div>
+      <h2 class="section-title">${esc(STR.ui_thanks_title)}</h2>
+      <p class="section-desc" style="margin-top:10px">${esc(STR.ui_thanks_body)}</p>
+    </div>`;
+  clearDraft();
+}
+
+function renderSection(sec){
+  let html = `<div class="card"><h2 class="section-title">${esc(sec.title)}</h2>`;
+  if(sec.desc) html += `<p class="section-desc">${esc(sec.desc)}</p>`;
+  sec.questions.forEach(q => { html += renderQuestion(q); });
+  html += `<div class="nav">
+      <button class="btn btn-ghost" id="backBtn">${esc(STR.ui_back_button)}</button>
+      <button class="btn btn-primary" id="nextBtn">${esc(step === MODEL.sections.length-1 ? STR.ui_submit_button : STR.ui_next_button)}</button>
+    </div></div>`;
+  app.innerHTML = html;
+
+  sec.questions.forEach(q => bindQuestion(q));
+  document.getElementById("backBtn").onclick = () => { step -= 1; saveDraft(); render(); window.scrollTo(0,0); };
+  document.getElementById("nextBtn").onclick = () => onNext(sec);
+}
+
+function labelHtml(q){
+  return `<div class="q-label">${esc(q.q)}${q.required ? '<span class="req">*</span>' : ""}</div>` +
+         (q.help ? `<div class="q-help">${esc(q.help)}</div>` : "");
+}
+
+function renderQuestion(q){
+  const val = answers[q.id];
+  if(q.type === "text"){
+    return `<div class="q" id="qwrap-${q.id}">${labelHtml(q)}
+      <input type="text" id="in-${q.id}" value="${esc(val||"")}">
+      <div class="err-text">${esc(STR.ui_err_text)}</div></div>`;
+  }
+  if(q.type === "textarea"){
+    return `<div class="q" id="qwrap-${q.id}">${labelHtml(q)}
+      <textarea id="in-${q.id}">${esc(val||"")}</textarea>
+      <div class="err-text">${esc(STR.ui_err_text)}</div></div>`;
+  }
+  if(q.type === "multi_other"){
+    const sel = val && val.selected ? val.selected : [];
+    const otherText = val && val.other ? val.other : "";
+    const otherChecked = sel.includes(OTHER_KEY);
+    let html = `<div class="q" id="qwrap-${q.id}">${labelHtml(q)}<div class="choices">`;
+    q.options.forEach((opt,i) => {
+      const checked = sel.includes(opt);
+      html += `<label class="choice ${checked?'checked':''}"><input type="checkbox" data-opt="${esc(opt)}" ${checked?'checked':''}><span>${esc(opt)}</span></label>`;
+    });
+    html += `<label class="choice ${otherChecked?'checked':''}"><input type="checkbox" data-opt="${OTHER_KEY}" ${otherChecked?'checked':''}><span>${esc(STR.ui_other_label)}</span></label>`;
+    html += `</div><div class="other-input" id="other-wrap-${q.id}" style="display:${otherChecked?'block':'none'}"><input type="text" id="other-${q.id}" placeholder="${esc(STR.ui_other_placeholder)}" value="${esc(otherText)}"></div>`;
+    html += `<div class="err-text">${esc(STR.ui_err_choice)}</div></div>`;
+    return html;
+  }
+  if(q.type === "rank"){
+    const order = (val && val.order) ? val.order : q.options.slice();
+    let html = `<div class="q" id="qwrap-${q.id}">${labelHtml(q)}<ol class="rank-list" id="rank-${q.id}" data-qid="${q.id}">`;
+    order.forEach((label,i) => {
+      html += `<li class="rank-item" data-label="${esc(label)}">
+        <span class="rank-num">${i+1}</span>
+        <span class="rank-handle" aria-hidden="true">⠿</span>
+        <span class="rank-label">${esc(label)}</span>
+        <span class="rank-arrows">
+          <button type="button" class="rk-up" aria-label="Move up">▲</button>
+          <button type="button" class="rk-down" aria-label="Move down">▼</button>
+        </span>
+      </li>`;
+    });
+    html += `</ol><div class="rank-hint">${esc(STR.ui_rank_hint)}</div></div>`;
+    return html;
+  }
+  if(q.type === "rating_grid"){
+    const ratings = (val && val.ratings) ? val.ratings : {};
+    let html = `<div class="q" id="qwrap-${q.id}">${labelHtml(q)}<table class="rate"><tr><th class="lbl"></th>${[1,2,3,4,5].map(n=>`<th>${n}</th>`).join("")}</tr>`;
+    q.options.forEach((row,ri) => {
+      html += `<tr><td class="lbl">${esc(row)}</td>`;
+      for(let n=1;n<=5;n++){
+        const checked = ratings[row] === n;
+        html += `<td class="cell"><input class="rate-radio" type="radio" name="rate-${q.id}-${ri}" data-row="${esc(row)}" data-val="${n}" ${checked?'checked':''}></td>`;
+      }
+      html += `</tr>`;
+    });
+    html += `</table><div class="rate-scale-caption"><span>${esc(q.scaleLow||"1 · low")}</span><span>${esc(q.scaleHigh||"5 · high")}</span></div></div>`;
+    return html;
+  }
+  return "";
+}
+
+function bindQuestion(q){
+  if(q.type === "text" || q.type === "textarea"){
+    const el = document.getElementById("in-"+q.id);
+    el.addEventListener("input", () => { answers[q.id] = el.value; clearInvalid(q.id); saveDraft(); });
+  }
+  if(q.type === "multi_other"){
+    const wrap = document.getElementById("qwrap-"+q.id);
+    wrap.querySelectorAll('.choices input[type=checkbox]').forEach(cb => {
+      cb.addEventListener("change", () => {
+        const cur = (answers[q.id] && answers[q.id].selected) ? answers[q.id].selected.slice() : [];
+        const opt = cb.dataset.opt;
+        const idx = cur.indexOf(opt);
+        if(cb.checked && idx === -1) cur.push(opt);
+        if(!cb.checked && idx !== -1) cur.splice(idx,1);
+        answers[q.id] = { selected: cur, other: (answers[q.id]&&answers[q.id].other)||"" };
+        cb.closest(".choice").classList.toggle("checked", cb.checked);
+        if(opt === OTHER_KEY) document.getElementById("other-wrap-"+q.id).style.display = cb.checked ? "block" : "none";
+        clearInvalid(q.id); saveDraft();
+      });
+    });
+    const otherIn = document.getElementById("other-"+q.id);
+    if(otherIn) otherIn.addEventListener("input", () => {
+      answers[q.id] = answers[q.id] || {selected:[], other:""};
+      answers[q.id].other = otherIn.value; saveDraft();
+    });
+  }
+  if(q.type === "rank") bindRank(q);
+  if(q.type === "rating_grid"){
+    const wrap = document.getElementById("qwrap-"+q.id);
+    wrap.querySelectorAll('.rate-radio').forEach(r => {
+      r.addEventListener("change", () => {
+        answers[q.id] = answers[q.id] || {ratings:{}};
+        answers[q.id].ratings[r.dataset.row] = parseInt(r.dataset.val,10);
+        saveDraft();
+      });
+    });
+  }
+}
+
+function clearInvalid(id){ const w = document.getElementById("qwrap-"+id); if(w) w.classList.remove("invalid"); }
+
+/* ---- drag-to-rank: pointer events (mouse + touch), plus up/down buttons ---- */
+function bindRank(q){
+  const list = document.getElementById("rank-"+q.id);
+  if(!answers[q.id]) answers[q.id] = { order: [...list.querySelectorAll('.rank-item')].map(li => li.dataset.label) };
+
+  function commitOrder(){
+    const order = [...list.querySelectorAll('.rank-item')].map(li => li.dataset.label);
+    answers[q.id] = { order };
+    list.querySelectorAll('.rank-item').forEach((li,i) => { li.querySelector('.rank-num').textContent = i+1; });
+    list.querySelectorAll('.rk-up').forEach((b,i) => b.disabled = (i===0));
+    list.querySelectorAll('.rk-down').forEach((b,i) => b.disabled = (i===list.children.length-1));
+    saveDraft();
+  }
+  commitOrder();
+
+  list.querySelectorAll('.rk-up').forEach(btn => btn.addEventListener("click", () => {
+    const li = btn.closest('.rank-item'); const prev = li.previousElementSibling;
+    if(prev) list.insertBefore(li, prev);
+    commitOrder();
+  }));
+  list.querySelectorAll('.rk-down').forEach(btn => btn.addEventListener("click", () => {
+    const li = btn.closest('.rank-item'); const next = li.nextElementSibling;
+    if(next) list.insertBefore(next, li);
+    commitOrder();
+  }));
+
+  let dragEl = null, startY = 0, placeholderH = 0;
+  list.querySelectorAll('.rank-handle').forEach(handle => {
+    handle.addEventListener("pointerdown", (e) => {
+      dragEl = handle.closest('.rank-item');
+      dragEl.setPointerCapture && dragEl.setPointerCapture(e.pointerId);
+      dragEl.classList.add("dragging");
+      startY = e.clientY;
+      placeholderH = dragEl.offsetHeight;
+      e.preventDefault();
+    });
+  });
+  list.addEventListener("pointermove", (e) => {
+    if(!dragEl) return;
+    const items = [...list.querySelectorAll('.rank-item:not(.dragging)')];
+    const y = e.clientY;
+    let target = null;
+    for(const it of items){
+      const r = it.getBoundingClientRect();
+      if(y < r.top + r.height/2){ target = it; break; }
+    }
+    if(target) list.insertBefore(dragEl, target); else list.appendChild(dragEl);
+  });
+  function endDrag(e){
+    if(!dragEl) return;
+    dragEl.classList.remove("dragging");
+    dragEl = null;
+    commitOrder();
+  }
+  list.addEventListener("pointerup", endDrag);
+  list.addEventListener("pointercancel", endDrag);
+}
+
+/* ============================================================
+   Validation + navigation + submit
+   ============================================================ */
+function sectionValid(sec){
+  let ok = true;
+  sec.questions.forEach(q => {
+    if(!q.required) return;
+    let filled = false;
+    if(q.type === "text" || q.type === "textarea") filled = !!(answers[q.id] && answers[q.id].trim());
+    else if(q.type === "multi_other") filled = !!(answers[q.id] && answers[q.id].selected && answers[q.id].selected.length);
+    else filled = true;
+    const w = document.getElementById("qwrap-"+q.id);
+    if(!filled){ ok = false; if(w) w.classList.add("invalid"); }
+    else if(w) w.classList.remove("invalid");
+  });
+  return ok;
+}
+
+function onNext(sec){
+  if(!sectionValid(sec)){
+    document.querySelector(".card .invalid")?.scrollIntoView({behavior:"smooth", block:"center"});
+    return;
+  }
+  if(step === MODEL.sections.length - 1){ submitForm(); return; }
+  step += 1; saveDraft(); render(); window.scrollTo(0,0);
+}
+
+function flattenAnswers(){
+  const out = { submitted_at: new Date().toISOString() };
+  MODEL.sections.forEach(sec => sec.questions.forEach(q => {
+    const v = answers[q.id];
+    if(q.type === "multi_other"){
+      const sel = (v && v.selected) || [];
+      out[q.id] = sel.filter(s=>s!==OTHER_KEY).join("; ") + (sel.includes(OTHER_KEY) && v.other ? (sel.length>1?"; ":"") + "Other: " + v.other : "");
+    } else if(q.type === "rank"){
+      out[q.id] = ((v && v.order) || q.options).map((l,i)=>(i+1)+". "+l).join(" | ");
+    } else if(q.type === "rating_grid"){
+      const r = (v && v.ratings) || {};
+      out[q.id] = q.options.map(o => o + ": " + (r[o]!=null ? r[o] : "—")).join(" | ");
+    } else {
+      out[q.id] = v || "";
+    }
+  }));
+  return out;
+}
+
+async function submitForm(){
+  const nextBtn = document.getElementById("nextBtn");
+  if(nextBtn){ nextBtn.disabled = true; nextBtn.textContent = STR.ui_submit_button + "…"; }
+  const payload = flattenAnswers();
+
+  if(!CONFIG.SUBMIT_URL){ showFallback(payload, null); return; }
+
+  try{
+    await fetch(CONFIG.SUBMIT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight against Apps Script
+      body: JSON.stringify(payload)
+    });
+    step = MODEL.sections.length; render(); window.scrollTo(0,0);
+  }catch(err){
+    showFallback(payload, err);
+  }
+}
+
+function showFallback(payload, err){
+  app.innerHTML = `
+    <div class="card">
+      <h2 class="section-title">${esc(err ? STR.ui_fallback_err_title : STR.ui_fallback_nourl_title)}</h2>
+      <p class="section-desc">${esc(err ? STR.ui_fallback_err_body : STR.ui_fallback_nourl_body)}</p>
+      <div class="fallback-box">
+        <textarea id="fallbackText" readonly>${esc(JSON.stringify(payload, null, 2))}</textarea>
+        <div class="nav">
+          <button class="btn btn-ghost" id="copyBtn">${esc(STR.ui_copy_button)}</button>
+          ${err ? `<button class="btn btn-primary" id="retryBtn">${esc(STR.ui_retry_button)}</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  document.getElementById("copyBtn").onclick = () => {
+    const ta = document.getElementById("fallbackText");
+    ta.select(); document.execCommand && document.execCommand("copy");
+    navigator.clipboard && navigator.clipboard.writeText(ta.value).catch(()=>{});
+    document.getElementById("copyBtn").textContent = STR.ui_copied_label;
+  };
+  const retryBtn = document.getElementById("retryBtn");
+  if(retryBtn) retryBtn.onclick = () => { render(); submitForm(); };
+  clearDraft();
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+(async function(){
+  loadDraft();
+  await loadSheetOverrides();
+  render();
+})();
+</script>
+</body>
+</html>
